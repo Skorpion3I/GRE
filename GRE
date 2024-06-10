@@ -1,4 +1,51 @@
+apt install strongswan
 Первое что иногда необходимо это понимать что за устройство мы используем. Для того чтобы переименовать устройство используем команду
 hostnamectl set-hostname ИМЯ; exec bash
 На всех сетевых устройствах необходимо включить ip forwarding для включения маршрутизации на оборудовании, для этого зайдем в 
 nano /etc/sysctl.conf
+Настроить NAT можно с использованием разных пакетов. В качестве примера можно использовать nftables. В Debian 11 пакет установлен по умолчанию, что позволяет сразу перейти к его настройке. Настройка производится при помощи описания конфигурации в файле 
+nano /etc/nftables.conf.
+tavle ip nat {
+    chain postrouting {
+        type nat hook postrouting priority 0;
+        ip saddr 192.168.""".0/28  oifname ens35 counter masquerade;
+        }
+}
+Данное правило можно прочитать как «В таблице nat, которая работает только с IPv4-трафиком, на этапе, когда трафик прошел процесс маршрутизации, необходимо выбрать пакеты только из подсети 172.16.100.0 с 24 маской, идущие на интерфейс ens35, посчитать их и произвести трансляцию в адрес исходящего интерфейса».
+nft -f /etc/nftables.conf
+Команда свеху проверит правильность написанния
+для добавления в авто загрузку
+systemctl enable --now nftables
+для проверки traceroute -n """.""".""".1
+nano /etc/gre.up
+#!/bin/bash L
+ip tunnel add tun0 mode gre local 1.1.1.100 remote 2.2.2.100
+ip addr add 10.9.8.1/30 dev tun0
+ip link set up tun0
+ip route add 172.17.8.0/28 via 10.9.8.2
+#!/bin/bash R
+ip tunnel add tun0 mode gre local 2.2.2.100 remote 1.1.1.100
+ip addr add 10.9.8.2/30 dev tun0
+ip link set up tun0
+ip route add 192.19.2.0/28 via 10.9.8.1
+chmod +x /etc/gre.up
+ /etc/gre.up
+nano /etc/crontab
+@reboot root /etc/gre.up
+nano /etc/ipsec.conf
+conn vpn                                   conn vpn
+    auto=start                                 auto=start 
+    type=tunnel                                type=tunnel
+    authby=secret                              authby=secret
+    left=1.1.1.100                             left=2.2.2.100
+    right=2.2.2.100                            right=1.1.1.100
+    leftsubnet=0.0.0.0/0                       leftsubnet=0.0.0.0/0
+    rightsubnet=0.0.0.0/0                      rightsubnet=0.0.0.0/0
+    leftprotoport=gre                          leftprotoport=gre
+    rightprotoport=gre                         rightprotoport=gre
+    ike=aes128-sha256-modp3072                 ike=aes128-sha256-modp3072
+    esp=aes128-sha256-modp3072                 esp=aes128-sha256-modp3072
+nano /etc/ipsec.secrets
+1.1.1.100 2.2.2.100 : PSK "пороль"
+systemctl enable --now ipsec
+ipsec status
